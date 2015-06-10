@@ -1,0 +1,112 @@
+---
+- name: yum update
+  yum: name=* state=latest
+  tags: ["yum_updates", "yum"]
+
+- name: install epel, remi, rpmforge repository
+  yum: name={{item}} state=present
+  with_items:
+    - "epel-release"
+    - "http://rpms.famillecollet.com/enterprise/remi-release-7.rpm"
+    - "http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el7.rf.x86_64.rpm"
+  tags: ["yum_repos", "yum"]
+
+- name: install the 'Development tools' package group
+  yum: name="@Development tools" state=present
+  tags: yum
+
+- name: installs yum pkgs
+  yum: name={{ item }} state=present
+  with_items:
+    - "mlocate"
+    - "gcc-c++"
+    - "zlib-devel"
+    - "pcre"
+    - "pcre-devel"
+    - "ImageMagick"
+    - "ImageMagick-devel"
+    - "openssl"
+    - "openssl-devel"
+    - "vim"
+    - "tmux"
+    - "chrony"
+    - "pygpgme"
+    - "curl"
+    - "curl-devel"
+    - "libselinux-python"
+    - "libxml2-devel.x86_64"
+    - "libxslt-devel.x86_64"
+    - "perl-ExtUtils-Embed.noarch"
+    - "readline-devel"
+  tags: yum
+
+      # nginxの組み込みmoduleをfull で使う場合は以下も必要
+      #    - "libaio"
+      #    - "GeoIP-devel.x86_64"
+      #    - "GeoIP-update.noarch"
+      #    - "gd-devel"
+      #    - "gperftools-devel"
+      #    - "libevent.x86_64"
+      #    - "libevent-devel.x86_64"
+
+  # https://www.phusionpassenger.com/documentation/Users%20guide%20Nginx.html#installing_or_upgrading_on_red_hat
+
+- name: Disable selinux
+  selinux: state=disabled policy= conf=/etc/selinux/config
+  tags: selinux
+
+- name: start firewalld
+  service: name=firewalld state=started
+
+- name: check firewall
+  shell: firewall-cmd --list-services | grep http
+  register: result_fw
+  failed_when: False
+  changed_when: False
+
+- name: Set up firewall
+  firewalld: >
+    state=enabled
+    permanent=true
+    zone=public
+    service=http
+  when: result_fw.rc == 1
+  notify: reloaded firewalld
+
+- name: Check status of selinux
+  shell: /usr/sbin/getenforce
+  register: result_enforce
+  changed_when: False
+  tags: selinux
+
+- name: Reboot for selinux disabled
+  shell: sleep 2s && /sbin/reboot &
+  ignore_errors: true
+  failed_when: False
+  when: result_enforce.stdout in 'Enabled'
+  tags: selinux
+
+- name: waiting after reboot the server
+  local_action: wait_for
+    delay=5
+    host={{ ansible_ssh_host }}
+    port={{ ansible_ssh_port }}
+    timeout=500
+  sudo: no
+  tags: selinux
+
+- name: Stop early access
+  local_action: pause seconds=5 prompt=please wait. stop early access
+  sudo: no
+  tags: selinux
+
+- name: Check status of selinux
+  shell: /usr/sbin/getenforce
+  register: result_enforce
+  changed_when: False
+  tags: selinux
+
+- assert:
+    that:
+      - result_enforce.stdout in 'Disabled'
+  tags: selinux

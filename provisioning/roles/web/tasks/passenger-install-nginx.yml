@@ -1,0 +1,30 @@
+---
+# https://www.phusionpassenger.com/documentation/Users%20guide%20Nginx.html#rubygems_generic_install
+- name: passenger install nginx
+  #shell: chdir={{ doc_root }} bundle exec passenger-install-nginx-module --auto-download --auto --prefix=/opt/nginx
+  shell: >
+    passenger-install-nginx-module
+    --auto-download
+    --auto
+    --prefix={{ ngx_prefix }}
+    --extra-configure-flags="--with-pcre --with-debug --with-cc-opt='-g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2'"
+  changed_when: False
+  notify: started nginx
+
+- name: setup nginx.conf
+  template: >
+    dest="{{ ngx_prefix }}/conf/nginx.conf"
+    src="nginx.conf"
+    mode=0644
+    owner=root
+    group=root
+    backup=yes
+  notify: restarted nginx
+
+- name: change permission for gyazo access
+  file: path={{ doc_root }}/{{item}} recurse=yes group=nobody state=directory mode=0775 owner=root
+  with_items:
+    - "data"
+    - "db"
+    - "tmp"
+    - "log"

@@ -1,0 +1,10 @@
+---
+- name: rbenv rehash
+  sudo: yes
+  command: rbenv rehash
+  environment:
+    PATH: "/usr/local/rbenv/bin:{{ ansible_env.PATH }}"
+  changed_when: False
+  tags: gem
+
+

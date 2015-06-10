@@ -1,0 +1,6 @@
+gyazo:
+  roles:
+    - common
+    - web
+    - gyazo
+    - fw

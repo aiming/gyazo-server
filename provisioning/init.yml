@@ -1,0 +1,8 @@
+---
+# Gyazo server for CentOS 7
+- hosts: all
+  sudo: yes
+  roles:
+    - { role: init, tags: 'init' }
+    - { role: rbenv, tags: 'rbenv' }
+

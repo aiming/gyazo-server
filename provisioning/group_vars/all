@@ -1,0 +1,22 @@
+---
+doc_root: "/var/www/gyazo"
+exist_url: "https://example.com/"
+url: "http://{{ inventory_hostname }}/"
+
+# nginx
+nginx: "nginx-1.8.0"
+archive_ext: ".tar.gz"
+nginx_src_url: "http://nginx.org/download/{{ nginx }}{{ archive_ext }}"
+ngx_prefix: "/opt/nginx"
+port: 80
+
+# gems
+gems:
+  passenger:
+    ver: '3.0.21'
+  rake:
+    ver: '10.4.2'
+  fastthread:
+    ver: "1.0.7"
+  fileutils:
+    ver: "0.7"

@@ -1,0 +1,4 @@
+---
+- name: reloaded firewalld
+  service: name=firewalld state=reloaded
+  # sudo firewall-cmd --reload ??

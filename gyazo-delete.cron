@@ -1,0 +1,1 @@
+0 4 * * * find /var/www/gyazo/data -mtime +30 -name '*.png' -exec rm -f {} \;

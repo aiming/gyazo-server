@@ -1,0 +1,23 @@
+---
+# Rbenv install
+- name: Check galaxy already exist for rbenv
+  sudo: no
+  local_action: stat path=/usr/local/etc/ansible/roles/zzet.rbenv
+  register: result
+  failed_when: False
+  changed_when: False
+
+- name: Install ansible galaxy
+  sudo: no
+  local_action: command ansible-galaxy install zzet.rbenv
+  when: result.stat.exists == False
+
+- name: Set sudo
+  copy: >
+    dest=/etc/sudoers.d/
+    src=00_base
+    mode=0440
+    owner=root
+    group=root
+
+# continue to the zzet.rbenv

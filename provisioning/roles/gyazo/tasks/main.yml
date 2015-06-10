@@ -1,0 +1,99 @@
+---
+
+- name: rbenv rehash
+  include: '../../rbenv/tasks/rehash.yml'
+  tags: gem
+
+# changing env variables for zzet.rbenv
+- name: set /etc/bashrc
+  lineinfile: >
+    dest=/etc/bashrc
+    create=no
+    state=present
+    insertafter=EOF
+    line="{{ item }}"
+    backup=yes
+  with_items:
+    - 'export RBENV_ROOT="/usr/local/rbenv"'
+    - 'export PATH=${RBENV_ROOT}/bin:${RBENV_ROOT}/shims:$PATH'
+    - 'eval \"$(rbenv init -)\"'
+
+- name: create a doc_root
+  file: >
+    path={{ doc_root }}
+    group=root
+    state=directory
+    mode=0755
+    owner=root
+
+- name: changing permission /var/www
+  file: path=/var/www mode=755
+
+- name: install gems
+  gem: >
+    name={{ item.key }}
+    version={{ item.value.ver }}
+    user_install=False
+  with_dict: gems
+  tags: gem
+
+- name: rbenv rehash
+  include: '../../rbenv/tasks/rehash.yml'
+  tags: gem
+
+## passenger で問題起こすのため、bundlerは使わない
+#- name: copy Gemfile
+#  copy: >
+#    dest={{ doc_root }}/Gemfile
+#    src=Gemfile
+#    group=vagrant
+#    mode=440
+#    owner=root
+#
+## Setup gyazo server
+#- name: gem install bundler
+#  gem: name=bundler executable=/usr/local/rbenv/shims/gem user_install=False
+#  tags: gem
+#
+#- name: rbenv rehash
+#  include: '../../rbenv/tasks/rehash.yml'
+#  tags: gem
+
+#- name: Bundle install
+#  sudo: no
+#  remote_user: vagrant
+#  shell: bundle install --path vendor/bundle chdir={{ doc_root }}
+#  environment:
+#    PATH: "/usr/local/rbenv/bin:/usr/local/rbenv/versions/{{ rbenv.ruby_version }}/bin:{{ ansible_env.PATH }}"
+#  tags: gem
+
+- name: export gyazo files
+  copy: >
+    dest={{ doc_root }}
+    src={{ item }}
+    group=nobody
+    mode=0644
+    owner=root
+  with_items:
+    - "alert.sh"
+    - "config.ru"
+    - "data"
+    - "db"
+    - "gyazo-delete.cron"
+    - "log"
+    - "public"
+    - "record.sh"
+    - "tmp"
+    - "upload.rb"
+  tags: gyazo
+
+- name: changing permission of a data dir
+  file: path={{ doc_root }}/data state=directory mode=0770
+
+- name: Changing hostname
+  lineinfile: >
+    dest={{ doc_root }}/upload.rb
+    regexp="{{ exist_url }}"
+    line="        res.write(\"{{ url }}data/#{hash[0].chr}/#{hash[1].chr}/#{hash}.png\")"
+    backup=no
+  tags: gyazo

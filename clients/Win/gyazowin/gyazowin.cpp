@@ -1,4 +1,4 @@
-﻿// gyazowin.cpp : アプリケーションのエントリ ポイントを定義します。
+// gyazowin.cpp : アプリケーションのエントリ ポイントを定義します。
 #include "stdafx.h"
 #include "gyazowin.h"
 
@@ -58,8 +58,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	// 自身のディレクトリを取得する
 	sLen = GetModuleFileName(NULL, szThisPath, MAX_PATH);
-	for (unsigned int i = sLen; i >= 0; i--) {
-		if (szThisPath[i] == _T('\\')) {
+	for(unsigned int i = sLen; i >= 0; i--) {
+		if(szThisPath[i] == _T('\\')) {
 			szThisPath[i] = _T('\0');
 			break;
 		}
@@ -166,8 +166,8 @@ BOOL isPng(LPCTSTR fileName)
 	fclose(fp);
 
 	// compare
-	for (unsigned int i = 0; i < 8; i++)
-		if (pngHead[i] != readHead[i]) return FALSE;
+	for(unsigned int i=0;i<8;i++)
+		if(pngHead[i] != readHead[i]) return FALSE;
 
 	return TRUE;
 

@@ -1,53 +1,53 @@
 gyazowin+ v1.00 by NV
 gyazowin by tnj(http://nothing.sh/blog/archives/44)
 
-<�T�v>
-tnj����gyazowin�̉����łł��B
-�A�b�v���[�h����w��ł���̂ŁAgyazo�ȊO�ɂ��A�b�v���[�h���\�ł��B
-�܂��A�m�F���b�Z�[�W�̕\���@�\�Ȃǂ��ǉ�����Ă��܂��B
+<概要>
+tnj氏のgyazowinの改造版です。
+アップロード先を指定できるので、gyazo以外にもアップロードが可能です。
+また、確認メッセージの表示機能などが追加されています。
 
-<�t�@�C���\��>
-gyazowin+.exe	- �{��
-gyazowin+.ini	- �ݒ�t�@�C��
-readme.txt	- ���̃t�@�C��
+<ファイル構成>
+gyazowin+.exe	- 本体
+gyazowin+.ini	- 設定ファイル
+readme.txt	- このファイル
 
-<�C���X�g�[��>
-�K���ȃt�H���_�ɖ{�̂Ɛݒ�t�@�C�����R�s�[����Ύg���܂��B
+<インストール>
+適当なフォルダに本体と設定ファイルをコピーすれば使えます。
 
-<�A���C���X�g�[��>
-�R�s�[�����t�@�C�����폜���邾���ł��B
-���W�X�g���͎g�p���Ă��܂���B
+<アンインストール>
+コピーしたファイルを削除するだけです。
+レジストリは使用していません。
 
-<�ݒ�t�@�C���ɂ���>
-INI�`���ł��B[gyazowin+] �Z�N�V�������ɂ��ׂĂ̐ݒ���L�q���܂��B
+<設定ファイルについて>
+INI形式です。[gyazowin+] セクション内にすべての設定を記述します。
 
-upload_server=�A�b�v���[�h��T�[�o
-�A�b�v���[�h��̃T�[�o��ݒ肵�܂��B
-�h���C����[:�|�[�g] �̌`�Ŏw�肵�܂��B
-�����ݒ�: gyazo.com
+upload_server=アップロード先サーバ
+アップロード先のサーバを設定します。
+ドメイン名[:ポート] の形で指定します。
+初期設定: gyazo.com
 
-upload_path=�A�b�v���[�h��p�X
-�A�b�v���[�h���CGI�ւ̃p�X���w�肵�܂��B
-�K���ŏ��ɂ�/��t���Ă��������B
-�����ݒ�: /upload.cgi
+upload_path=アップロード先パス
+アップロード先のCGIへのパスを指定します。
+必ず最初には/を付けてください。
+初期設定: /upload.cgi
 
 up_dialog=(yes/no)
-�A�b�v���[�h���Ɋm�F�_�C�A���O��\�����邩���w�肵�܂��B
-�����ݒ�: no
+アップロード時に確認ダイアログを表示するかを指定します。
+初期設定: no
 
 copy_url=(yes/no)
-�摜URL���N���b�v�{�[�h�ɃR�s�[���邩���w�肵�܂��B
-�����ݒ�: yes
+画像URLをクリップボードにコピーするかを指定します。
+初期設定: yes
 
 copy_dialog=(yes/no)
-�N���b�v�{�[�h�փR�s�[���Ƀ_�C�A���O��\�����邩���w�肵�܂��B
-�����ݒ�: no
+クリップボードへコピー時にダイアログを表示するかを指定します。
+初期設定: no
 
 open_browser=(yes/no)
-�摜������̃u���E�U�ŕ\�����邩���w�肵�܂��B
-�����ݒ�: yes
+画像を既定のブラウザで表示するかを指定します。
+初期設定: yes
 
-<���C�Z���X>
-Creative Commons Attribution-Noncommercial 2.1 Japan �Ƃ��܂��B
-����: tnj��
-����: NV
+<ライセンス>
+Creative Commons Attribution-Noncommercial 2.1 Japan とします。
+原作: tnj氏
+改造: NV

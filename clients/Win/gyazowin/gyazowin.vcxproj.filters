@@ -34,17 +34,16 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="gyazowin.ico">
+    <Image Include="gyazowin.ico">
       <Filter>リソース ファイル</Filter>
-    </None>
-    <None Include="small.ico">
-      <Filter>リソース ファイル</Filter>
-    </None>
-    <None Include="ReadMe.txt" />
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="gyazowin.rc">
       <Filter>リソース ファイル</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\Readme.txt" />
   </ItemGroup>
 </Project>

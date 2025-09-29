@@ -31,29 +31,9 @@ upload_path=アップロード先パス
 必ず最初には/を付けてください。
 初期設定: /upload.cgi
 
-use_ssl=(yes/no)
-SSLを使用するかを指定します。
-初期設定: no
-
-ssl_check_cert=(yes/no)
-SSLを使用するとき、サーバ証明書のチェックを行うかを指定します。
-初期設定: yes
-
-use_auth=(yes/no)
-Basic認証を使用するか指定します。
-初期設定: no
-
-auth_id=ID
-Basic認証を行うときに使用するIDを指定します。
-初期設定: (空白)
-
-auth_pw=パスワード
-Basic認証を行うときに使用するパスワードを指定します。
-初期設定: (空白)
-
 up_dialog=(yes/no)
 アップロード時に確認ダイアログを表示するかを指定します。
-初期設定: yes
+初期設定: no
 
 copy_url=(yes/no)
 画像URLをクリップボードにコピーするかを指定します。
@@ -61,11 +41,11 @@ copy_url=(yes/no)
 
 copy_dialog=(yes/no)
 クリップボードへコピー時にダイアログを表示するかを指定します。
-初期設定: yes
+初期設定: no
 
 open_browser=(yes/no)
 画像を既定のブラウザで表示するかを指定します。
-初期設定: no
+初期設定: yes
 
 <ライセンス>
 Creative Commons Attribution-Noncommercial 2.1 Japan とします。

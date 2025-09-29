@@ -251,8 +251,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	ofX = x;
 	ofY = y;
 
-	// === 修正部分ここまで ===
-
 	// 完全に透過したウィンドウを作る
 	hWnd = CreateWindowEx(
 		WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST

@@ -3,14 +3,16 @@
 
 #include "stdafx.h"
 #include "gyazowin.h"
+#include <windowsx.h>
 
 // グローバル変数:
 HINSTANCE hInst;							// 現在のインターフェイス
 TCHAR *szTitle			= _T("gyazowin");	// タイトル バーのテキスト
 TCHAR *szWindowClass	= _T("GYAZOWIN");	// メイン ウィンドウ クラス名
 
-int ofX, ofY;	// 画面オフセット
+int ofX, ofY, ofW, ofH;	// 画面オフセット
 std::map<std::wstring, std::wstring> g_Settings;
+HBITMAP g_hScreenBmp = NULL; // ★追加: 背景用スクリーンショット
 
 // プロトタイプ宣言
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -81,6 +83,35 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 			DeleteFile(tmpFile);
 		}
 		return TRUE;
+	}
+
+	// 高DPI対応を宣言して、座標ズレやメイン画面固定を防ぐ
+    // DPI対応の強化: Per-Monitor V2 (Win10 1703+) を試み、ダメなら古い方法を使う
+	// これにより、拡大率の異なるマルチモニタ環境での座標ズレを防ぐ
+	HMODULE hUser32 = GetModuleHandle(_T("user32.dll"));
+	if (hUser32) {
+		// -4 が Per-Monitor V2 の値です
+		const void* CTX_V2 = (void*)-4;
+
+		typedef BOOL(WINAPI *LPSETPROCESSDPIAWARENESSCONTEXT)(const void*);
+		LPSETPROCESSDPIAWARENESSCONTEXT lpSetProcessDpiAwarenessContext =
+			(LPSETPROCESSDPIAWARENESSCONTEXT)GetProcAddress(hUser32, "SetProcessDpiAwarenessContext");
+
+		BOOL dpiSet = FALSE;
+		if (lpSetProcessDpiAwarenessContext) {
+			// 引数を CTX_V2 に戻す
+			dpiSet = lpSetProcessDpiAwarenessContext(CTX_V2);
+		}
+
+		if (!dpiSet) {
+			// ダメなら古いAPI (Windows Vista/7/8)
+			typedef BOOL(WINAPI *LPSETPROCESSDPIAWARE)(void);
+			LPSETPROCESSDPIAWARE lpSetProcessDPIAware =
+				(LPSETPROCESSDPIAWARE)GetProcAddress(hUser32, "SetProcessDPIAware");
+			if (lpSetProcessDPIAware) {
+				lpSetProcessDPIAware();
+			}
+		}
 	}
 
 	// ウィンドウクラスを登録
@@ -166,7 +197,8 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wc.hInstance     = hInstance;
 	wc.hIcon         = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_GYAZOWIN));
 	wc.hCursor       = LoadCursor(NULL, IDC_CROSS);	// + のカーソル
-	wc.hbrBackground = 0;							// 背景も設定しない
+//	wc.hbrBackground = 0;							// 背景も設定しない
+	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 	wc.lpszMenuName  = 0;
 	wc.lpszClassName = szWindowClass;
 
@@ -174,44 +206,45 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 }
 
 
-// インスタンスの初期化（全画面をウィンドウで覆う）
+// インスタンスの初期化（半透明の黒い幕で覆う）
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 	HWND hWnd;
-	hInst = hInstance; // グローバル変数にインスタンス処理を格納します。
+	hInst = hInstance;
 
 	int x, y, w, h;
 
-	// 仮想スクリーン全体をカバー
+	// 仮想スクリーン全体
 	x = GetSystemMetrics(SM_XVIRTUALSCREEN);
 	y = GetSystemMetrics(SM_YVIRTUALSCREEN);
 	w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
 	h = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
-	// x, y のオフセット値を覚えておく
-	ofX = x; ofY = y;
+	ofX = x; ofY = y; ofW = w; ofH = h;
 
-	// 完全に透過したウィンドウを作る
+	// ★重要: WS_EX_TRANSPARENT は絶対に含めないこと！ (操作不能になります)
 	hWnd = CreateWindowEx(
-		WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST
+		WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED
 #if(_WIN32_WINNT >= 0x0500)
 		| WS_EX_NOACTIVATE
 #endif
 		,
 		szWindowClass, NULL, WS_POPUP,
-		CW_USEDEFAULT, 0, CW_USEDEFAULT, 0,
+		x, y, w, h,
 		NULL, NULL, hInstance, NULL);
 
-	// 作れなかった...?
 	if (!hWnd) return FALSE;
-	
-	// 全画面を覆う
+
+	// ★変更: LWA_ALPHA を使い、アルファ値(透明度)を設定する
+	// 50 くらいにすると、画面がうっすら暗くなり「キャプチャモード」だと分かりやすい
+	// かつ、マウス操作も確実に受け付けるようになる
+	// (0=完全透明, 255=完全不透明)
+	SetLayeredWindowAttributes(hWnd, 0, 50, LWA_ALPHA);
+
 	MoveWindow(hWnd, x, y, w, h, FALSE);
-	
-	// nCmdShow を無視 (SW_MAXIMIZE とかされると困る)
 	ShowWindow(hWnd, SW_SHOW);
 	UpdateWindow(hWnd);
-	
+
 	return TRUE;
 }
 
@@ -258,8 +291,8 @@ VOID drawRubberband(HDC hdc, LPRECT newRect, BOOL erase)
 	// XOR で描画
 	int hPreRop = SetROP2(hdc, R2_XORPEN);
 
-	// 点線
-	HPEN hPen = CreatePen(PS_DOT , 1, 0);
+	// ★変更: 白色の実線 (PS_SOLID) にする
+	HPEN hPen = CreatePen(PS_SOLID, 2, RGB(255, 255, 255));
 	SelectObject(hdc, hPen);
 	SelectObject(hdc, GetStockObject(NULL_BRUSH));
 
@@ -361,7 +394,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	
 	switch (message)
 	{
-	
+	case WM_NCHITTEST:
+		return HTCLIENT;
+
+	case WM_PAINT:
+	{
+		PAINTSTRUCT ps;
+		HDC hdc = BeginPaint(hWnd, &ps);
+
+		if (g_hScreenBmp) {
+			HDC hMemDC = CreateCompatibleDC(hdc);
+			HBITMAP oldBmp = (HBITMAP)SelectObject(hMemDC, g_hScreenBmp);
+
+			// 保存しておいたデスクトップ画像をウィンドウに貼り付ける
+			// これで「透けている」ように見える
+			BitBlt(hdc, 0, 0, ofW, ofH, hMemDC, 0, 0, SRCCOPY);
+
+			SelectObject(hMemDC, oldBmp);
+			DeleteDC(hMemDC);
+		}
+		EndPaint(hWnd, &ps);
+	}
+	return 0; // 描画したら終了
+
 	case WM_RBUTTONDOWN:
 		// キャンセル
 		DestroyWindow(hWnd);
@@ -370,147 +425,144 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	case WM_MOUSEMOVE:
 		if (onClip) {
-			
-			// 新しい座標をセット
-			clipRect.right  = LOWORD(lParam) + ofX;
-			clipRect.bottom = HIWORD(lParam) + ofY;
-			
-			hdc = GetDC(NULL);
-			drawRubberband(hdc, &clipRect, FALSE);
-			ReleaseDC(NULL, hdc);
-			
-			// EndPaint(hWnd, &ps);
+			POINT pt;
+			GetCursorPos(&pt); // 絶対座標を取得
+
+			// データ用は「絶対座標」のまま保持
+			clipRect.right = pt.x;
+			clipRect.bottom = pt.y;
+
+			// 描画用には「ウィンドウのDC」を使う
+			hdc = GetDC(hWnd);
+
+			// 描画用に座標を変換 (絶対座標 -> ウィンドウ内座標)
+			RECT drawRect = clipRect;
+			MapWindowPoints(NULL, hWnd, (LPPOINT)&drawRect, 2);
+
+			// 変換した座標で描画
+			drawRubberband(hdc, &drawRect, FALSE);
+			ReleaseDC(hWnd, hdc);
 		}
 		break;
-	
 
 	case WM_LBUTTONDOWN:
-		{
-			// クリップ開始
-			onClip = TRUE;
-			
-			// 初期位置をセット
-			clipRect.left = LOWORD(lParam) + ofX;
-			clipRect.top  = HIWORD(lParam) + ofY;
-			
-			// マウスをキャプチャ
-			SetCapture(hWnd);
-		}
-		break;
+	{
+		POINT pt;
+		GetCursorPos(&pt); // ★画面全体の絶対座標を取得
+
+		// クリップ開始
+		onClip = TRUE;
+
+		// 初期位置をセット
+		clipRect.left = pt.x;
+		clipRect.top = pt.y;
+
+		// マウスをキャプチャ
+		SetCapture(hWnd);
+	}
+	break;
 
 	case WM_LBUTTONUP:
-		{
-			// クリップ終了
-			onClip = FALSE;
-			
-			// マウスのキャプチャを解除
-			ReleaseCapture();
-		
-			// 新しい座標をセット
-			clipRect.right  = LOWORD(lParam) + ofX;
-			clipRect.bottom = HIWORD(lParam) + ofY;
+	{
+		POINT pt;
+		GetCursorPos(&pt); // 絶対座標
 
-			// 画面に直接描画，って形
-			HDC hdc = GetDC(NULL);
+		// クリップ終了
+		onClip = FALSE;
+		ReleaseCapture();
 
-			// 線を消す
-			drawRubberband(hdc, &clipRect, TRUE);
+		// データ用は「絶対座標」
+		clipRect.right = pt.x;
+		clipRect.bottom = pt.y;
 
-			// 座標チェック
-			if ( clipRect.right  < clipRect.left ) {
-				int tmp = clipRect.left;
-				clipRect.left   = clipRect.right;
-				clipRect.right  = tmp;
-			}
-			if ( clipRect.bottom < clipRect.top  ) {
-				int tmp = clipRect.top;
-				clipRect.top    = clipRect.bottom;
-				clipRect.bottom = tmp;
-			}
-			
-			// 画像のキャプチャ
-			int iWidth, iHeight;
-			iWidth  = clipRect.right  - clipRect.left + 1;
-			iHeight = clipRect.bottom - clipRect.top  + 1;
+		// --- ★修正: 最後のラバーバンド消去 (ここもウィンドウ内座標で行う) ---
+		HDC hdcWin = GetDC(hWnd);
+		RECT drawRect = clipRect;
+		MapWindowPoints(NULL, hWnd, (LPPOINT)&drawRect, 2); // 座標変換
+		drawRubberband(hdcWin, &drawRect, TRUE);
+		ReleaseDC(hWnd, hdcWin);
+		// -------------------------------------------------------
 
-			if(iWidth == 0 || iHeight == 0) {
-				// 画像になってない, なにもしない
-				ReleaseDC(NULL, hdc);
-				DestroyWindow(hWnd);
-				break;
-			}
-
-			// ビットマップバッファを作成
-			HBITMAP newBMP = CreateCompatibleBitmap(hdc, iWidth, iHeight);
-			HDC	    newDC  = CreateCompatibleDC(hdc);
-			
-			// 関連づけ
-			SelectObject(newDC, newBMP);
-
-			// 画像を取得
-			BitBlt(newDC, 0, 0, iWidth, iHeight, 
-				hdc, clipRect.left, clipRect.top, SRCCOPY);
-			
-			// ウィンドウを隠す!
-			ShowWindow(hWnd, SW_HIDE);
-			
-			/*
-			// 画像をクリップボードにコピー
-			if ( OpenClipboard(hWnd) ) {
-				// 消去
-				EmptyClipboard();
-				// セット
-				SetClipboardData(CF_BITMAP, newBMP);
-				// 閉じる
-				CloseClipboard();
-			}
-			*/
-			
-			// テンポラリファイル名を決定
-			TCHAR tmpDir[MAX_PATH], tmpFile[MAX_PATH];
-			GetTempPath(MAX_PATH, tmpDir);
-			GetTempFileName(tmpDir, _T("gya"), 0, tmpFile);
-			
-			if (savePNG(tmpFile, newBMP)) {
-
-				// うｐ
-				if (!uploadFile(hWnd, tmpFile)) {
-					// アップロードに失敗...
-					// エラーメッセージは既に表示されている
-
-					/*
-					TCHAR sysDir[MAX_PATH];
-					if (SUCCEEDED(StringCchCopy(sysDir, MAX_PATH, tmpFile)) &&
-						SUCCEEDED(StringCchCat(sysDir, MAX_PATH, _T(".png")))) {
-						
-						MoveFile(tmpFile, sysDir);
-						SHELLEXECUTEINFO lsw = {0};
-						
-						lsw.hwnd	= hWnd;
-						lsw.cbSize	= sizeof(SHELLEXECUTEINFO);
-						lsw.lpVerb	= _T("open");
-						lsw.lpFile	= sysDir;
-
-						ShellExecuteEx(&lsw);
-					}
-					*/
-				}
-			} else {
-				// PNG保存失敗...
-				MessageBox(hWnd, _T("cannot save png image"), _T("ERROR"), 
-					MB_OK | MB_ICONERROR);
-			}
-
-			// 後始末
-			DeleteFile(tmpFile);
-			
-			DeleteDC(newDC);
-			DeleteObject(newBMP);
-
-			ReleaseDC(NULL, hdc);
-			DestroyWindow(hWnd);
+		// 座標の正規化 (ここからは絶対座標 clipRect を使う)
+		if (clipRect.right < clipRect.left) {
+			int tmp = clipRect.left;
+			clipRect.left = clipRect.right;
+			clipRect.right = tmp;
 		}
-		break;
+		if (clipRect.bottom < clipRect.top) {
+			int tmp = clipRect.top;
+			clipRect.top = clipRect.bottom;
+			clipRect.bottom = tmp;
+		}
+
+		// サイズ計算
+		int iWidth, iHeight;
+		iWidth = clipRect.right - clipRect.left + 1;
+		iHeight = clipRect.bottom - clipRect.top + 1;
+
+		if (iWidth <= 0 || iHeight <= 0) {
+			DestroyWindow(hWnd);
+			break;
+		}
+
+		// --- キャプチャ処理 (前回の成功コードと同じ) ---
+
+		// 1. 選択範囲の中心点を計算
+		POINT ptCenter;
+		ptCenter.x = (clipRect.left + clipRect.right) / 2;
+		ptCenter.y = (clipRect.top + clipRect.bottom) / 2;
+
+		// 2. その点が含まれるモニタを探す
+		HMONITOR hMon = MonitorFromPoint(ptCenter, MONITOR_DEFAULTTONEAREST);
+		MONITORINFOEX mi;
+		mi.cbSize = sizeof(MONITORINFOEX);
+		GetMonitorInfo(hMon, &mi);
+
+		// 3. そのモニタ専用のDCを作る
+		HDC hdcTarget = CreateDC(NULL, mi.szDevice, NULL, NULL);
+
+		// 4. 座標変換: 「全体座標」から「そのモニタの相対座標」に変換
+		int srcX = clipRect.left - mi.rcMonitor.left;
+		int srcY = clipRect.top - mi.rcMonitor.top;
+
+		// ビットマップバッファを作成
+		HBITMAP newBMP = CreateCompatibleBitmap(hdcTarget, iWidth, iHeight);
+		HDC	    newDC = CreateCompatibleDC(hdcTarget);
+
+		// 関連づけ
+		SelectObject(newDC, newBMP);
+
+		// 画像を取得
+		BitBlt(newDC, 0, 0, iWidth, iHeight,
+			hdcTarget, srcX, srcY, SRCCOPY);
+
+		// ウィンドウを隠す
+		ShowWindow(hWnd, SW_HIDE);
+
+		// --- 保存・アップロード処理 ---
+		TCHAR tmpDir[MAX_PATH], tmpFile[MAX_PATH];
+		GetTempPath(MAX_PATH, tmpDir);
+		GetTempFileName(tmpDir, _T("gya"), 0, tmpFile);
+
+		if (savePNG(tmpFile, newBMP)) {
+			if (!uploadFile(hWnd, tmpFile)) {
+				// upload failed...
+			}
+		}
+		else {
+			MessageBox(hWnd, _T("cannot save png image"), _T("ERROR"),
+				MB_OK | MB_ICONERROR);
+		}
+
+		// 後始末
+		DeleteFile(tmpFile);
+		DeleteDC(newDC);
+		DeleteObject(newBMP);
+
+		DeleteDC(hdcTarget);
+		DestroyWindow(hWnd);
+	}
+	break;
 
 	case WM_DESTROY:
 		PostQuitMessage(0);

@@ -12,7 +12,7 @@ TCHAR *szWindowClass	= _T("GYAZOWIN");	// メイン ウィンドウ クラス名
 
 int ofX, ofY, ofW, ofH;	// 画面オフセット
 std::map<std::wstring, std::wstring> g_Settings;
-HBITMAP g_hScreenBmp = NULL; // ★追加: 背景用スクリーンショット
+HBITMAP g_hScreenBmp = NULL; // 背景用スクリーンショット
 
 // プロトタイプ宣言
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -222,7 +222,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	ofX = x; ofY = y; ofW = w; ofH = h;
 
-	// ★重要: WS_EX_TRANSPARENT は絶対に含めないこと！ (操作不能になります)
+	// WS_EX_TRANSPARENT は絶対に含めないこと！ (操作不能になります)
 	hWnd = CreateWindowEx(
 		WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED
 #if(_WIN32_WINNT >= 0x0500)
@@ -235,7 +235,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	if (!hWnd) return FALSE;
 
-	// ★変更: LWA_ALPHA を使い、アルファ値(透明度)を設定する
+	// LWA_ALPHA を使い、アルファ値(透明度)を設定する
 	// 50 くらいにすると、画面がうっすら暗くなり「キャプチャモード」だと分かりやすい
 	// かつ、マウス操作も確実に受け付けるようになる
 	// (0=完全透明, 255=完全不透明)
@@ -448,7 +448,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:
 	{
 		POINT pt;
-		GetCursorPos(&pt); // ★画面全体の絶対座標を取得
+		GetCursorPos(&pt); // 画面全体の絶対座標を取得
 
 		// クリップ開始
 		onClip = TRUE;
@@ -475,7 +475,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		clipRect.right = pt.x;
 		clipRect.bottom = pt.y;
 
-		// --- ★修正: 最後のラバーバンド消去 (ここもウィンドウ内座標で行う) ---
+		// --- 最後のラバーバンド消去 (ここもウィンドウ内座標で行う) ---
 		HDC hdcWin = GetDC(hWnd);
 		RECT drawRect = clipRect;
 		MapWindowPoints(NULL, hWnd, (LPPOINT)&drawRect, 2); // 座標変換

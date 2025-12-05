@@ -47,6 +47,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	// 自身のディレクトリを取得する
 	sLen = GetModuleFileName(NULL, szThisPath, MAX_PATH);
+#pragma warning(suppress: 6295)
 	for(unsigned int i = sLen; i >= 0; i--) {
 		if(szThisPath[i] == _T('\\')) {
 			szThisPath[i] = _T('\0');
@@ -239,7 +240,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// 50 くらいにすると、画面がうっすら暗くなり「キャプチャモード」だと分かりやすい
 	// かつ、マウス操作も確実に受け付けるようになる
 	// (0=完全透明, 255=完全不透明)
-	SetLayeredWindowAttributes(hWnd, 0, 50, LWA_ALPHA);
+	SetLayeredWindowAttributes(hWnd, 0, 128, LWA_ALPHA);
 
 	MoveWindow(hWnd, x, y, w, h, FALSE);
 	ShowWindow(hWnd, SW_SHOW);
@@ -387,36 +388,12 @@ BOOL savePNG(LPCTSTR fileName, HBITMAP newBMP)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	HDC hdc;
-	
-	static BOOL onClip		= FALSE;
-	static BOOL firstDraw	= TRUE;
-	static RECT clipRect	= {0, 0, 0, 0};
-	
+
+	static BOOL onClip = FALSE;
+	static RECT clipRect = { 0, 0, 0, 0 };
+
 	switch (message)
 	{
-	case WM_NCHITTEST:
-		return HTCLIENT;
-
-	case WM_PAINT:
-	{
-		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
-
-		if (g_hScreenBmp) {
-			HDC hMemDC = CreateCompatibleDC(hdc);
-			HBITMAP oldBmp = (HBITMAP)SelectObject(hMemDC, g_hScreenBmp);
-
-			// 保存しておいたデスクトップ画像をウィンドウに貼り付ける
-			// これで「透けている」ように見える
-			BitBlt(hdc, 0, 0, ofW, ofH, hMemDC, 0, 0, SRCCOPY);
-
-			SelectObject(hMemDC, oldBmp);
-			DeleteDC(hMemDC);
-		}
-		EndPaint(hWnd, &ps);
-	}
-	return 0; // 描画したら終了
-
 	case WM_RBUTTONDOWN:
 		// キャンセル
 		DestroyWindow(hWnd);
@@ -426,20 +403,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_MOUSEMOVE:
 		if (onClip) {
 			POINT pt;
-			GetCursorPos(&pt); // 絶対座標を取得
+			GetCursorPos(&pt); // 絶対座標
 
 			// データ用は「絶対座標」のまま保持
 			clipRect.right = pt.x;
 			clipRect.bottom = pt.y;
 
-			// 描画用には「ウィンドウのDC」を使う
-			hdc = GetDC(hWnd);
+			// --- ★修正: 選択範囲だけ「穴」を空けて、下の画面を明るく見せる ---
+			// 1. 全画面のリージョンを作る
+			HRGN hRgnFull = CreateRectRgn(0, 0, ofW, ofH);
 
-			// 描画用に座標を変換 (絶対座標 -> ウィンドウ内座標)
+			// 2. 選択範囲のリージョンを作る（ウィンドウ内座標に変換）
 			RECT drawRect = clipRect;
 			MapWindowPoints(NULL, hWnd, (LPPOINT)&drawRect, 2);
+			HRGN hRgnSel = CreateRectRgn(drawRect.left, drawRect.top, drawRect.right, drawRect.bottom);
 
-			// 変換した座標で描画
+			// 3. 全画面から選択範囲を引く (RGN_DIFF) -> 選択範囲だけ穴が空く
+			CombineRgn(hRgnFull, hRgnFull, hRgnSel, RGN_DIFF);
+
+			// 4. ウィンドウに適用
+			SetWindowRgn(hWnd, hRgnFull, TRUE);
+
+			// 後始末 (SetWindowRgnに渡したhRgnFullはシステムが管理するので削除不要、hRgnSelは削除)
+			DeleteObject(hRgnSel);
+
+			// 枠線の描画
+			hdc = GetDC(hWnd);
 			drawRubberband(hdc, &drawRect, FALSE);
 			ReleaseDC(hWnd, hdc);
 		}
@@ -448,7 +437,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:
 	{
 		POINT pt;
-		GetCursorPos(&pt); // 画面全体の絶対座標を取得
+		GetCursorPos(&pt); // 絶対座標
 
 		// クリップ開始
 		onClip = TRUE;
@@ -465,25 +454,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONUP:
 	{
 		POINT pt;
-		GetCursorPos(&pt); // 絶対座標
+		GetCursorPos(&pt);
 
 		// クリップ終了
 		onClip = FALSE;
 		ReleaseCapture();
 
-		// データ用は「絶対座標」
+		// 最終座標セット
 		clipRect.right = pt.x;
 		clipRect.bottom = pt.y;
 
-		// --- 最後のラバーバンド消去 (ここもウィンドウ内座標で行う) ---
-		HDC hdcWin = GetDC(hWnd);
-		RECT drawRect = clipRect;
-		MapWindowPoints(NULL, hWnd, (LPPOINT)&drawRect, 2); // 座標変換
-		drawRubberband(hdcWin, &drawRect, TRUE);
-		ReleaseDC(hWnd, hdcWin);
-		// -------------------------------------------------------
+		// --- ★修正: キャプチャ前にウィンドウを隠す (これで画像が明るくなる) ---
 
-		// 座標の正規化 (ここからは絶対座標 clipRect を使う)
+		// 1. まずウィンドウを隠す
+		ShowWindow(hWnd, SW_HIDE);
+
+		// 2. Windowsのアニメーションや描画更新を待つため少し待機
+		// (これをしないと消えかけの半透明が写り込むことがある)
+		Sleep(200);
+
+		// -------------------------------------------------------------------
+
+		// 座標の正規化
 		if (clipRect.right < clipRect.left) {
 			int tmp = clipRect.left;
 			clipRect.left = clipRect.right;
@@ -505,39 +497,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 
-		// --- キャプチャ処理 (前回の成功コードと同じ) ---
+		// --- キャプチャ処理 (変更なし) ---
 
-		// 1. 選択範囲の中心点を計算
+		// 1. 中心点
 		POINT ptCenter;
 		ptCenter.x = (clipRect.left + clipRect.right) / 2;
 		ptCenter.y = (clipRect.top + clipRect.bottom) / 2;
 
-		// 2. その点が含まれるモニタを探す
+		// 2. モニタ特定
 		HMONITOR hMon = MonitorFromPoint(ptCenter, MONITOR_DEFAULTTONEAREST);
 		MONITORINFOEX mi;
 		mi.cbSize = sizeof(MONITORINFOEX);
 		GetMonitorInfo(hMon, &mi);
 
-		// 3. そのモニタ専用のDCを作る
+		// 3. モニタDC作成 (ウィンドウが消えているので、純粋な画面が撮れる)
 		HDC hdcTarget = CreateDC(NULL, mi.szDevice, NULL, NULL);
 
-		// 4. 座標変換: 「全体座標」から「そのモニタの相対座標」に変換
+		// 4. 相対座標変換
 		int srcX = clipRect.left - mi.rcMonitor.left;
 		int srcY = clipRect.top - mi.rcMonitor.top;
 
-		// ビットマップバッファを作成
+		// ビットマップ作成
 		HBITMAP newBMP = CreateCompatibleBitmap(hdcTarget, iWidth, iHeight);
 		HDC	    newDC = CreateCompatibleDC(hdcTarget);
 
-		// 関連づけ
 		SelectObject(newDC, newBMP);
 
-		// 画像を取得
+		// 画像取得
 		BitBlt(newDC, 0, 0, iWidth, iHeight,
 			hdcTarget, srcX, srcY, SRCCOPY);
-
-		// ウィンドウを隠す
-		ShowWindow(hWnd, SW_HIDE);
 
 		// --- 保存・アップロード処理 ---
 		TCHAR tmpDir[MAX_PATH], tmpFile[MAX_PATH];
@@ -550,7 +538,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 		else {
-			MessageBox(hWnd, _T("cannot save png image"), _T("ERROR"),
+			MessageBox(NULL, _T("cannot save png image"), _T("ERROR"),
 				MB_OK | MB_ICONERROR);
 		}
 
@@ -558,8 +546,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		DeleteFile(tmpFile);
 		DeleteDC(newDC);
 		DeleteObject(newBMP);
-
 		DeleteDC(hdcTarget);
+
+		// 最後に自分を破棄
 		DestroyWindow(hWnd);
 	}
 	break;
